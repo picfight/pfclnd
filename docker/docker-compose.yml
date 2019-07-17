@@ -1,0 +1,106 @@
+version: '2'
+services:
+
+    # btc is an image of picfightcoin node which used as base image for pfcd and
+    # btccli. The environment variables default values determined on stage of
+    # container start within starting script.
+    btc:
+      image: pfcd
+      build:
+        context: pfcd/
+      volumes:
+            - shared:/rpc
+            - picfightcoin:/data
+      environment:
+        - RPCUSER
+        - RPCPASS
+        - NETWORK
+
+    pfcd:
+        extends: btc
+        container_name: pfcd
+        environment:
+          - DEBUG
+          - MINING_ADDRESS
+        entrypoint: ["./start-pfcd.sh"]
+
+    btcctl:
+        extends: btc
+        container_name: btcctl
+        links:
+            - "pfcd:rpcserver"
+        entrypoint: ["./start-btcctl.sh"]
+
+
+    # ltc is an image of litecoin node which used as base image for ltcd and
+    # ltcctl. The environment variables default values determined on stage of
+    # container start within starting script.
+    ltc:
+      image: ltcd
+      build:
+        context: ltcd/
+      volumes:
+            - shared:/rpc
+            - litecoin:/data
+      environment:
+        - RPCUSER
+        - RPCPASS
+        - NETWORK
+
+    ltcd:
+        extends: ltc
+        container_name: ltcd
+        environment:
+          - DEBUG
+          - MINING_ADDRESS
+        entrypoint: ["./start-ltcd.sh"]
+
+    ltcctl:
+        extends: ltc
+        container_name: ltcctl
+        links:
+            - "ltcd:rpcserver"
+        entrypoint: ["./start-ltcctl.sh"]
+
+    lnd:
+        image: lnd
+        build:
+          context: ../
+          dockerfile: docker/lnd/Dockerfile
+        environment:
+          - RPCUSER
+          - RPCPASS
+          - NETWORK
+          - CHAIN
+          - DEBUG
+        volumes:
+            - shared:/rpc
+        entrypoint: ["./start-lnd.sh"]
+
+    lnd_ltc:
+      extends: lnd
+      container_name: lnd_ltc
+      links:
+          - "ltcd:blockchain"
+
+    lnd_btc:
+      extends: lnd
+      container_name: lnd_btc
+      links:
+          - "pfcd:blockchain"
+
+volumes:
+  # shared volume is need to store the pfcd rpc certificates and use it within
+  # btcctl and lnd containers.
+  shared:
+    driver: local
+
+  # picfightcoin volume is needed for maintaining blockchain persistence
+  # during pfcd container recreation.
+  picfightcoin:
+    driver: local
+
+  # litecoin volume is needed for maintaining blockchain persistence
+  # during ltcd container recreation.
+  litecoin:
+    driver: local
